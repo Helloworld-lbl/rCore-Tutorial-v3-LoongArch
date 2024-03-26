@@ -1,15 +1,15 @@
 //! batch subsystem
 
-use crate::sbi::shutdown;
+// use crate::uart::shutdown;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
-use core::arch::asm;
+// use core::arch::asm;
 use lazy_static::*;
 
 const USER_STACK_SIZE: usize = 4096 * 2;
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
-const APP_BASE_ADDRESS: usize = 0x80400000;
+const APP_BASE_ADDRESS: usize = 0x300000;
 const APP_SIZE_LIMIT: usize = 0x20000;
 
 #[repr(align(4096))]
@@ -70,7 +70,7 @@ impl AppManager {
     unsafe fn load_app(&self, app_id: usize) {
         if app_id >= self.num_app {
             println!("All applications completed!");
-            shutdown(false);
+            loop {}
         }
         println!("[kernel] Loading app_{}", app_id);
         // clear app area
@@ -87,7 +87,7 @@ impl AppManager {
         // Therefore, fence.i must be executed after we have loaded
         // the code of the next app into the instruction memory.
         // See also: riscv non-priv spec chapter 3, 'Zifencei' extension.
-        asm!("fence.i");
+        // asm!("fence.i");
     }
 
     pub fn get_current_app(&self) -> usize {

@@ -28,7 +28,7 @@ mod console;
 pub mod batch;
 mod lang_items;
 mod logging;
-mod sbi;
+mod uart;
 mod sync;
 pub mod syscall;
 pub mod trap;
