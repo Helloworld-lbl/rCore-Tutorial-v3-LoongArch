@@ -1,15 +1,19 @@
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
+#![feature(naked_functions)]
 
 #[macro_use]
 mod console;
 mod lang_items;
 mod uart;
 mod logging;
+mod multicore;
 
-use core::arch::global_asm;
+use core::{arch::global_asm, sync::atomic::Ordering};
 use log::*;
+
+use crate::multicore::{ start_secondary_cpus, ENTERED_CPUS };
 
 global_asm!(include_str!("entry.asm"));
 
@@ -52,7 +56,19 @@ pub fn rust_main() -> ! {
 
     // CI autotest success: sbi::shutdown(false)
     // CI autotest failed : sbi::shutdown(true)
+
+    start_secondary_cpus(0);
+
     panic!("Shutdown machine!");
+}
+
+#[no_mangle]
+pub extern "C" fn rust_main_secondary(cpu_id: usize) -> ! {
+    ENTERED_CPUS.fetch_add(1, Ordering::Relaxed);
+    info!("Secondary CPU {:x} started.", cpu_id);
+    println!("[kernel][CPU{:x}] Hello, world!", cpu_id);
+
+    panic!("Shutdown machine from CPU{:x}!", cpu_id);
 }
 
 fn clear_bss() {
