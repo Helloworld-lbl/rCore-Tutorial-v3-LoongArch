@@ -8,8 +8,8 @@ pub struct TaskContext {
     ra: usize,
     /// kernel stack pointer of app
     sp: usize,
-    /// callee saved registers:  s 0..11
-    s: [usize; 12],
+    /// callee saved registers:  s 0..9
+    s: [usize; 10],
 }
 
 impl TaskContext {
@@ -18,7 +18,7 @@ impl TaskContext {
         Self {
             ra: 0,
             sp: 0,
-            s: [0; 12],
+            s: [0; 10],
         }
     }
 
@@ -30,7 +30,7 @@ impl TaskContext {
         Self {
             ra: __restore as usize,
             sp: kstack_ptr,
-            s: [0; 12],
+            s: [0; 10],
         }
     }
 }

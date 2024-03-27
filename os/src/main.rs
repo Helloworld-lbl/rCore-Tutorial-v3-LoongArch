@@ -27,7 +27,7 @@ mod console;
 mod config;
 mod lang_items;
 mod loader;
-mod sbi;
+mod uart;
 mod sync;
 pub mod syscall;
 pub mod task;
