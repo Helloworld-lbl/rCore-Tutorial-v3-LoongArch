@@ -1,6 +1,6 @@
-OUTPUT_ARCH(riscv)
-ENTRY(_start)
-BASE_ADDRESS = 0x80200000;
+OUTPUT_ARCH(loongarch)
+ENTRY(start)
+BASE_ADDRESS = 0x100000;
 
 SECTIONS
 {
@@ -10,6 +10,8 @@ SECTIONS
     stext = .;
     .text : {
         *(.text.entry)
+        . = ALIGN(4k);
+        *(.text.trap)
         *(.text .text.*)
     }
 

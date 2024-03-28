@@ -1,8 +1,7 @@
+OUTPUT_ARCH(loongarch)
+ENTRY(start)
 
-OUTPUT_ARCH(riscv)
-ENTRY(_start)
-
-BASE_ADDRESS = 0x80400000;
+BASE_ADDRESS = 0x300000;
 
 SECTIONS
 {

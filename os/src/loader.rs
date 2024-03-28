@@ -7,7 +7,7 @@
 
 use crate::config::*;
 use crate::trap::TrapContext;
-use core::arch::asm;
+// use core::arch::asm;
 
 #[repr(align(4096))]
 #[derive(Copy, Clone)]
@@ -89,9 +89,9 @@ pub fn load_apps() {
     // Therefore, fence.i must be executed after we have loaded
     // the code of the next app into the instruction memory.
     // See also: riscv non-priv spec chapter 3, 'Zifencei' extension.
-    unsafe {
-        asm!("fence.i");
-    }
+    // unsafe {
+    //     asm!("fence.i");
+    // }
 }
 
 /// get app info with entry and sp and save `TrapContext` in kernel stack
