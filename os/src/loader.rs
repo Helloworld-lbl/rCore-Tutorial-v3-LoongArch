@@ -7,7 +7,7 @@
 
 use crate::config::*;
 use crate::trap::TrapContext;
-use core::arch::asm;
+// use core::arch::asm;
 
 #[repr(align(4096))]
 #[derive(Copy, Clone)]

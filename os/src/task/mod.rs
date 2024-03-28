@@ -17,7 +17,7 @@ mod task;
 
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
-use crate::uart::shutdown;
+// use crate::uart::shutdown;
 use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
@@ -135,7 +135,7 @@ impl TaskManager {
             // go back to user mode
         } else {
             println!("All applications completed!");
-            shutdown(false);
+            loop {}
         }
     }
 }

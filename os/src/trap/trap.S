@@ -39,7 +39,7 @@ __alltraps:
 __restore:
     # case1: start running app by __restore
     # case2: back to PLV3 after handling trap
-    move $sp, $a0
+    # move $sp, $a0
     # now sp->kernel stack(after allocated), save0->user stack
     # restore prmd/era
     ld.d $t0, $sp, 32*8
