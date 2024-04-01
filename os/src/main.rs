@@ -36,12 +36,12 @@ mod config;
 mod lang_items;
 mod loader;
 mod mm;
-mod sbi;
+mod uart;
 mod sync;
 pub mod syscall;
 pub mod task;
-mod timer;
 pub mod trap;
+mod shutdown;
 
 core::arch::global_asm!(include_str!("entry.asm"));
 core::arch::global_asm!(include_str!("link_app.S"));

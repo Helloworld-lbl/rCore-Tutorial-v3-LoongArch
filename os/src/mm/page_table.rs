@@ -4,18 +4,23 @@ use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPag
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use crate::config::{PALEN};
 
 bitflags! {
     /// page table entry flags
-    pub struct PTEFlags: u8 {
+    pub struct PTEFlags: u64 {
         const V = 1 << 0;
-        const R = 1 << 1;
-        const W = 1 << 2;
-        const X = 1 << 3;
-        const U = 1 << 4;
-        const G = 1 << 5;
-        const A = 1 << 6;
-        const D = 1 << 7;
+        const D = 1 << 1;
+        const PLV_L = 1 << 2;
+        const PLV_H = 1 << 3;
+        const MAT_L = 1 << 4;
+        const MAT_H = 1 << 5;
+        const G = 1 << 6;
+        const P = 1 << 7;
+        const W = 1 << 8;
+        const NR = 1 << 61;
+        const NX = 1 << 62;
+        const RPLV = 1 << 63;
     }
 }
 
@@ -29,29 +34,29 @@ pub struct PageTableEntry {
 impl PageTableEntry {
     pub fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
         PageTableEntry {
-            bits: ppn.0 << 10 | flags.bits as usize,
+            bits: ppn.0 << 12 | flags.bits as usize,
         }
     }
     pub fn empty() -> Self {
         PageTableEntry { bits: 0 }
     }
     pub fn ppn(&self) -> PhysPageNum {
-        (self.bits >> 10 & ((1usize << 44) - 1)).into()
+        ((self.bits & ((1usize << PALEN) - 1)) >> 12).into()
     }
     pub fn flags(&self) -> PTEFlags {
-        PTEFlags::from_bits(self.bits as u8).unwrap()
+        PTEFlags::from_bits(self.bits as u64).unwrap()
     }
     pub fn is_valid(&self) -> bool {
         (self.flags() & PTEFlags::V) != PTEFlags::empty()
     }
     pub fn readable(&self) -> bool {
-        (self.flags() & PTEFlags::R) != PTEFlags::empty()
+        (self.flags() & PTEFlags::NR) == PTEFlags::empty()
     }
     pub fn writable(&self) -> bool {
         (self.flags() & PTEFlags::W) != PTEFlags::empty()
     }
     pub fn executable(&self) -> bool {
-        (self.flags() & PTEFlags::X) != PTEFlags::empty()
+        (self.flags() & PTEFlags::NX) == PTEFlags::empty()
     }
 }
 

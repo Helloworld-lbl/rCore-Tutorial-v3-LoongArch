@@ -1,8 +1,8 @@
     .section .text.entry
-    .globl _start
-_start:
-    la sp, boot_stack_top
-    call rust_main
+    .globl start
+start:
+    la $sp, boot_stack_top
+    bl rust_main
 
     .section .bss.stack
     .globl boot_stack_lower_bound

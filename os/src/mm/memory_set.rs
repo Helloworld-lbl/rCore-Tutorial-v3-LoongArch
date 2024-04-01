@@ -72,7 +72,7 @@ impl MemorySet {
         self.page_table.map(
             VirtAddr::from(TRAMPOLINE).into(),
             PhysAddr::from(strampoline as usize).into(),
-            PTEFlags::R | PTEFlags::X,
+            PTEFlags::from_bits(0).unwrap(),
         );
     }
     /// Without kernel stacks.
@@ -94,7 +94,7 @@ impl MemorySet {
                 (stext as usize).into(),
                 (etext as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::X,
+                MapPermission::from_bits(0).unwrap(),
             ),
             None,
         );
@@ -104,7 +104,7 @@ impl MemorySet {
                 (srodata as usize).into(),
                 (erodata as usize).into(),
                 MapType::Identical,
-                MapPermission::R,
+                MapPermission::NX,
             ),
             None,
         );
@@ -114,7 +114,7 @@ impl MemorySet {
                 (sdata as usize).into(),
                 (edata as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::W,
             ),
             None,
         );
@@ -124,7 +124,7 @@ impl MemorySet {
                 (sbss_with_stack as usize).into(),
                 (ebss as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::W,
             ),
             None,
         );
@@ -134,7 +134,7 @@ impl MemorySet {
                 (ekernel as usize).into(),
                 MEMORY_END.into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::W,
             ),
             None,
         );
@@ -145,7 +145,7 @@ impl MemorySet {
                     (*pair).0.into(),
                     ((*pair).0 + (*pair).1).into(),
                     MapType::Identical,
-                    MapPermission::R | MapPermission::W,
+                    MapPermission::W,
                 ),
                 None,
             );
@@ -170,16 +170,16 @@ impl MemorySet {
             if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
                 let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
                 let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
-                let mut map_perm = MapPermission::U;
+                let mut map_perm = MapPermission::PLV_L | MapPermission::PLV_H;
                 let ph_flags = ph.flags();
-                if ph_flags.is_read() {
-                    map_perm |= MapPermission::R;
+                if !ph_flags.is_read() {
+                    map_perm |= MapPermission::NR;
                 }
                 if ph_flags.is_write() {
                     map_perm |= MapPermission::W;
                 }
-                if ph_flags.is_execute() {
-                    map_perm |= MapPermission::X;
+                if !ph_flags.is_execute() {
+                    map_perm |= MapPermission::NX;
                 }
                 let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
                 max_end_vpn = map_area.vpn_range.get_end();
@@ -200,7 +200,7 @@ impl MemorySet {
                 user_stack_bottom.into(),
                 user_stack_top.into(),
                 MapType::Framed,
-                MapPermission::R | MapPermission::W | MapPermission::U,
+                MapPermission::W | MapPermission::PLV_L | MapPermission::PLV_H,
             ),
             None,
         );
@@ -210,7 +210,7 @@ impl MemorySet {
                 user_stack_top.into(),
                 user_stack_top.into(),
                 MapType::Framed,
-                MapPermission::R | MapPermission::W | MapPermission::U,
+                MapPermission::W | MapPermission::PLV_L | MapPermission::PLV_H,
             ),
             None,
         );
@@ -220,7 +220,7 @@ impl MemorySet {
                 TRAP_CONTEXT.into(),
                 TRAMPOLINE.into(),
                 MapType::Framed,
-                MapPermission::R | MapPermission::W,
+                MapPermission::W,
             ),
             None,
         );
@@ -372,11 +372,13 @@ pub enum MapType {
 
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
-    pub struct MapPermission: u8 {
-        const R = 1 << 1;
-        const W = 1 << 2;
-        const X = 1 << 3;
-        const U = 1 << 4;
+    pub struct MapPermission: u64 {
+        const PLV_L = 1 << 2;
+        const PLV_H = 1 << 3;
+        const W = 1 << 8;
+        const NR = 1 << 61;
+        const NX = 1 << 62;
+        const RPLV = 1 << 63;
     }
 }
 
