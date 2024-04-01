@@ -22,9 +22,11 @@
 #![feature(panic_info_message)]
 
 use core::arch::global_asm;
+use loongarch::time;
+use crate::config::TICKS_PER_SEC;
 
-#[path = "boards/qemu.rs"]
-mod board;
+// #[path = "boards/qemu.rs"]
+// mod board;
 
 #[macro_use]
 mod console;
@@ -35,7 +37,7 @@ mod uart;
 mod sync;
 pub mod syscall;
 pub mod task;
-mod timer;
+// mod timer;
 pub mod trap;
 
 global_asm!(include_str!("entry.asm"));
@@ -58,10 +60,16 @@ fn clear_bss() {
 pub fn rust_main() -> ! {
     clear_bss();
     println!("[kernel] Hello, world!");
+    unsafe {
+        core::arch::asm!("idle 0");，
+        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000001, in(reg) 0x01d8);
+        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000000, in(reg) 0x01d8);
+        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000001, in(reg) 0x01d8);
+        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000011, in(reg) 0x01d8);
+    }
     trap::init();
     loader::load_apps();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+    time::init_trigger(TICKS_PER_SEC);
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

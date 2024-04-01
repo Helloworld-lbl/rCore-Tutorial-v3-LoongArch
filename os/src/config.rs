@@ -13,4 +13,6 @@ pub const CLOCK_FREQ: usize = 403000000 / 62;
 #[cfg(feature = "board_qemu")]
 pub const CLOCK_FREQ: usize = 12500000;
 */
-pub use crate::board::CLOCK_FREQ;
+// pub use crate::board::CLOCK_FREQ;
+
+pub const TICKS_PER_SEC: usize = 100;

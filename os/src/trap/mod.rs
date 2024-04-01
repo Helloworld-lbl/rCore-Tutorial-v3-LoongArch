@@ -16,9 +16,17 @@ mod context;
 
 use crate::syscall::syscall;
 use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
-use crate::timer::set_next_trigger;
+// use crate::timer::set_next_trigger;
 use core::arch::global_asm;
-use loongarch::register::{eentry, estat::{self, Trap, Exception}};
+use loongarch::register::{
+    eentry,
+    estat::{
+        self, 
+        Trap, 
+        Exception,
+        Interrupt},
+    ticlr::Ticlr
+    };
 
 global_asm!(include_str!("trap.S"));
 
@@ -33,11 +41,11 @@ pub fn init() {
 }
 
 /// timer interrupt enabled
-pub fn enable_timer_interrupt() {
-    unsafe {
-        sie::set_stimer();
-    }
-}
+// pub fn enable_timer_interrupt() {
+//     unsafe {
+//         sie::set_stimer();
+//     }
+// }
 
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
@@ -47,17 +55,19 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     match estat.cause() {
         Trap::Exception(Exception::SYS) => {
             cx.era += 4;
-            cx.r[0] = syscall(cx.r[11], [cx.r[4], cx.r[5], cx.r[6]]) as usize;
+            cx.r[4] = syscall(cx.r[11], [cx.r[4], cx.r[5], cx.r[6]]) as usize;
         }
         Trap::Exception(Exception::PIS) => {
             println!("[kernel] Trap::Exception(Exception::PIS) Invalid store operation page exception in application, kernel killed it.");
-            panic!("[kernel] Cannot continue!");
-            // run_next_app();
+            exit_current_and_run_next();
         }
         Trap::Exception(Exception::IPE) => {
             println!("[kernel] Trap::Exception(Exception::IPE) Instruction privilege level exception in application, kernel killed it.");
-            panic!("[kernel] Cannot continue!");
-            // run_next_app();
+            exit_current_and_run_next();
+        }
+        Trap::Interrupt(Interrupt::TI) => {
+            Ticlr::clear();
+            suspend_current_and_run_next();
         }
         _ => {
             panic!(
