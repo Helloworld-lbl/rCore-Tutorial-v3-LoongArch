@@ -61,11 +61,13 @@ pub fn rust_main() -> ! {
     clear_bss();
     println!("[kernel] Hello, world!");
     unsafe {
-        core::arch::asm!("idle 0");，
-        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000001, in(reg) 0x01d8);
-        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000000, in(reg) 0x01d8);
-        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000001, in(reg) 0x01d8);
-        core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000011, in(reg) 0x01d8);
+        let rd:usize;
+        // core::arch::asm!("idle 0");
+        core::arch::asm!("cpucfg {},{}", out(reg) rd, in(reg) 1);
+        // core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000000, in(reg) 0x01d8);
+        // core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000001, in(reg) 0x01d8);
+        // core::arch::asm!("iocsrwr.b {},{}", in(reg) 0b00000011, in(reg) 0x01d8);
+        println!("rd: {:b}", rd);
     }
     trap::init();
     loader::load_apps();
