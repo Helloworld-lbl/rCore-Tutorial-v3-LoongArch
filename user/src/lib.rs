@@ -9,7 +9,7 @@ mod syscall;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn start() -> ! {
     exit(main());
     panic!("unreachable after sys_exit!");
 }

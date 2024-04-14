@@ -15,9 +15,8 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
-use crate::uart::shutdown;
+use crate::shutdown::shutdown;
 use crate::sync::UPSafeCell;
-use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -121,12 +120,6 @@ impl TaskManager {
         inner.tasks[inner.current_task].get_user_token()
     }
 
-    /// Get the current 'Running' task's trap contexts.
-    fn get_current_trap_cx(&self) -> &'static mut TrapContext {
-        let inner = self.inner.exclusive_access();
-        inner.tasks[inner.current_task].get_trap_cx()
-    }
-
     /// Change the current 'Running' task's program break
     pub fn change_current_program_brk(&self, size: i32) -> Option<usize> {
         let mut inner = self.inner.exclusive_access();
@@ -193,11 +186,6 @@ pub fn exit_current_and_run_next() {
 /// Get the current 'Running' task's token.
 pub fn current_user_token() -> usize {
     TASK_MANAGER.get_current_token()
-}
-
-/// Get the current 'Running' task's trap contexts.
-pub fn current_trap_cx() -> &'static mut TrapContext {
-    TASK_MANAGER.get_current_trap_cx()
 }
 
 /// Change the current 'Running' task's program break

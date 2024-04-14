@@ -10,7 +10,7 @@ use user_lib::sbrk;
 #[no_mangle]
 fn main() -> i32 {
     println!("Test sbrk start.");
-    const PAGE_SIZE: usize = 0x1000;
+    const PAGE_SIZE: usize = 0x4000;
     let origin_brk = sbrk(0);
     println!("origin break point = {:x}", origin_brk);
     let brk = sbrk(PAGE_SIZE as i32);

@@ -1,10 +1,10 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum, PhysAddr};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
-use crate::config::{PALEN};
+use crate::config::{PAGE_SIZE_BITS, PALEN};
 
 bitflags! {
     /// page table entry flags
@@ -34,17 +34,17 @@ pub struct PageTableEntry {
 impl PageTableEntry {
     pub fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
         PageTableEntry {
-            bits: ppn.0 << 12 | flags.bits as usize,
+            bits: ppn.0 << PAGE_SIZE_BITS | flags.bits as usize,
         }
     }
     pub fn empty() -> Self {
         PageTableEntry { bits: 0 }
     }
     pub fn ppn(&self) -> PhysPageNum {
-        ((self.bits & ((1usize << PALEN) - 1)) >> 12).into()
+        ((self.bits & ((1usize << PALEN) - 1)) >> PAGE_SIZE_BITS).into()
     }
     pub fn flags(&self) -> PTEFlags {
-        PTEFlags::from_bits(self.bits as u64).unwrap()
+        PTEFlags::from_bits_truncate(self.bits as u64)
     }
     pub fn is_valid(&self) -> bool {
         (self.flags() & PTEFlags::V) != PTEFlags::empty()
@@ -76,9 +76,9 @@ impl PageTable {
         }
     }
     /// Temporarily used to get arguments from user space.
-    pub fn from_token(satp: usize) -> Self {
+    pub fn from_token(pgdl: usize) -> Self {
         Self {
-            root_ppn: PhysPageNum::from(satp & ((1usize << 44) - 1)),
+            root_ppn: PhysPageNum::from(pgdl >> PAGE_SIZE_BITS),
             frames: Vec::new(),
         }
     }
@@ -134,7 +134,8 @@ impl PageTable {
         self.find_pte(vpn).map(|pte| *pte)
     }
     pub fn token(&self) -> usize {
-        8usize << 60 | self.root_ppn.0
+        let root_pa: PhysAddr = self.root_ppn.into();
+        root_pa.into()
     }
 }
 

@@ -42,6 +42,9 @@ pub mod syscall;
 pub mod task;
 pub mod trap;
 mod shutdown;
+mod timer;
+
+use crate::config::TICKS_PER_SEC;
 
 core::arch::global_asm!(include_str!("entry.asm"));
 core::arch::global_asm!(include_str!("link_app.S"));
@@ -67,9 +70,8 @@ pub fn rust_main() -> ! {
     println!("[kernel] back to world!");
     mm::remap_test();
     trap::init();
-    //trap::enable_interrupt();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+    // trap::enable_interrupt();
+    timer::init_trigger(TICKS_PER_SEC);
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

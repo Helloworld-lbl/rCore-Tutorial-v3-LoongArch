@@ -13,19 +13,24 @@
 //! to [`syscall()`].
 mod context;
 
-use crate::config::{TRAMPOLINE, TRAP_CONTEXT};
+use crate::config::{TRAMPOLINE};
 use crate::syscall::syscall;
 use crate::task::{
-    current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next,
+    current_user_token, exit_current_and_run_next, suspend_current_and_run_next,
 };
-use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
-use riscv::register::{
-    mtvec::TrapMode,
-    scause::{self, Exception, Interrupt, Trap},
-    sie, stval, stvec,
-};
+use loongarch::register::{
+    eentry,
+    estat::{
+        self, 
+        Trap, 
+        Exception,
+        Interrupt},
+    ticlr::Ticlr,
+    badv,
+    };
 
+global_asm!(include_str!("tlbr.S"));
 global_asm!(include_str!("trap.S"));
 
 /// initialize CSR `stvec` as the entry of `__alltraps`
@@ -35,58 +40,51 @@ pub fn init() {
 
 fn set_kernel_trap_entry() {
     unsafe {
-        stvec::write(trap_from_kernel as usize, TrapMode::Direct);
+        eentry::write(trap_from_kernel as usize >> 12);
     }
 }
 
 fn set_user_trap_entry() {
     unsafe {
-        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
-    }
-}
-
-/// enable timer interrupt in sie CSR
-pub fn enable_timer_interrupt() {
-    unsafe {
-        sie::set_stimer();
+        eentry::write(TRAMPOLINE as usize >> 12);
     }
 }
 
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
-pub fn trap_handler() -> ! {
+pub fn trap_handler(cx: &mut TrapContext) -> ! {
     set_kernel_trap_entry();
-    let cx = current_trap_cx();
-    let scause = scause::read();
-    let stval = stval::read();
-    match scause.cause() {
-        Trap::Exception(Exception::UserEnvCall) => {
-            cx.sepc += 4;
-            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+    let estat = estat::read(); // get trap cause
+    let badv = badv::read();
+    match estat.cause() {
+        Trap::Exception(Exception::SYS) => {
+            cx.era += 4;
+            cx.r[4] = syscall(cx.r[11], [cx.r[4], cx.r[5], cx.r[6]]) as usize;
         }
-        Trap::Exception(Exception::StoreFault)
-        | Trap::Exception(Exception::StorePageFault)
-        | Trap::Exception(Exception::LoadFault)
-        | Trap::Exception(Exception::LoadPageFault) => {
-            println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
+        Trap::Exception(Exception::PIS) => {
+            println!("[kernel] Trap::Exception(Exception::PIS) Invalid store operation page exception in application, bad addr = {:#x}, kernel killed it.", badv.bits());
             exit_current_and_run_next();
         }
-        Trap::Exception(Exception::IllegalInstruction) => {
-            println!("[kernel] IllegalInstruction in application, kernel killed it.");
+        Trap::Exception(Exception::PIL) => {
+            println!("[kernel] Trap::Exception(Exception::PIL) Invalid load operation page exception in application, bad addr = {:#x}, kernel killed it.", badv.bits());
             exit_current_and_run_next();
         }
-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            set_next_trigger();
+        Trap::Exception(Exception::IPE) => {
+            println!("[kernel] Trap::Exception(Exception::IPE) Instruction privilege level exception in application, kernel killed it.");
+            exit_current_and_run_next();
+        }
+        Trap::Interrupt(Interrupt::TI) => {
+            Ticlr::clear();
             suspend_current_and_run_next();
         }
         _ => {
             panic!(
-                "Unsupported trap {:?}, stval = {:#x}!",
-                scause.cause(),
-                stval
+                "Unsupported trap {:?}!",
+                estat.cause()
             );
         }
     }
+    unsafe { asm!("or $sp, $fp, $r0"); }
     trap_return();
 }
 
@@ -96,8 +94,7 @@ pub fn trap_handler() -> ! {
 /// finally, jump to new addr of __restore asm function
 pub fn trap_return() -> ! {
     set_user_trap_entry();
-    let trap_cx_ptr = TRAP_CONTEXT;
-    let user_satp = current_user_token();
+    let user_pgdl = current_user_token();
     extern "C" {
         fn __alltraps();
         fn __restore();
@@ -105,12 +102,12 @@ pub fn trap_return() -> ! {
     let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
     unsafe {
         asm!(
-            "fence.i",
-            "jr {restore_va}",             // jump to new addr of __restore asm function
+            "ibar 0",
+            "or $sp, $fp, $r0",
+            "jirl $r0, {restore_va}, 0x0",             // jump to new addr of __restore asm function
             restore_va = in(reg) restore_va,
-            in("a0") trap_cx_ptr,      // a0 = virt addr of Trap Context
-            in("a1") user_satp,        // a1 = phy addr of usr page table
-            options(noreturn)
+            in("$a0") user_pgdl,        // a0 = phy addr of usr page table
+            options(noreturn),
         );
     }
 }
