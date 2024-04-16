@@ -3,7 +3,6 @@ use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
 use crate::sync::UPSafeCell;
-use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
 ///Processor management structure
@@ -74,13 +73,6 @@ pub fn current_user_token() -> usize {
     let task = current_task().unwrap();
     let token = task.inner_exclusive_access().get_user_token();
     token
-}
-///Get the mutable reference to trap context of current task
-pub fn current_trap_cx() -> &'static mut TrapContext {
-    current_task()
-        .unwrap()
-        .inner_exclusive_access()
-        .get_trap_cx()
 }
 ///Return to idle control flow for new scheduling
 pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {

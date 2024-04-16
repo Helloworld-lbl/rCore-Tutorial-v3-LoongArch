@@ -17,7 +17,7 @@
 //! We then call [`task::run_tasks()`] and for the first time go to
 //! userspace.
 
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 #![deny(warnings)]
 #![no_std]
 #![no_main]
@@ -30,7 +30,7 @@ extern crate alloc;
 extern crate bitflags;
 
 #[path = "boards/qemu.rs"]
-mod board;
+mod boards;
 
 #[macro_use]
 mod console;
@@ -38,14 +38,16 @@ mod config;
 mod lang_items;
 mod loader;
 pub mod mm;
-mod sbi;
 pub mod sync;
 pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
+pub mod shutdown;
+pub mod uart;
 
 use core::arch::global_asm;
+use config::TICKS_PER_SEC;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
@@ -72,8 +74,7 @@ pub fn rust_main() -> ! {
     println!("after initproc!");
     trap::init();
     //trap::enable_interrupt();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+    timer::init_trigger(TICKS_PER_SEC);
     loader::list_apps();
     task::run_tasks();
     panic!("Unreachable in rust_main!");

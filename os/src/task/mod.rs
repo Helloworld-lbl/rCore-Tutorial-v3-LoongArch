@@ -23,7 +23,7 @@ mod switch;
 mod task;
 
 use crate::loader::get_app_data_by_name;
-use crate::sbi::shutdown;
+use crate::shutdown::shutdown;
 use alloc::sync::Arc;
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
@@ -34,7 +34,7 @@ pub use context::TaskContext;
 pub use manager::add_task;
 pub use pid::{pid_alloc, KernelStack, PidAllocator, PidHandle};
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
+    current_task, current_user_token, run_tasks, schedule, take_current_task,
     Processor,
 };
 /// Suspend the current 'Running' task and run the next task in task list.
