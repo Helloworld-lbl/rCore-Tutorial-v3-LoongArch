@@ -9,7 +9,7 @@ mod switch;
 mod task;
 
 use crate::fs::{open_file, OpenFlags};
-use crate::sbi::shutdown;
+use crate::shutdown::shutdown;
 use alloc::sync::Arc;
 pub use context::TaskContext;
 use lazy_static::*;
@@ -22,7 +22,7 @@ pub use action::{SignalAction, SignalActions};
 pub use manager::{add_task, pid2task};
 pub use pid::{pid_alloc, KernelStack, PidHandle};
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
+    current_task, current_user_token, run_tasks, schedule, take_current_task,
 };
 pub use signal::{SignalFlags, MAX_SIG};
 
@@ -66,7 +66,6 @@ pub fn exit_current_and_run_next(exit_code: i32) {
             shutdown(false)
         }
     }
-
     // remove from pid2task
     remove_from_pid2task(task.getpid());
     // **** access current TCB exclusively
@@ -170,14 +169,14 @@ fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
         task_inner.signals ^= signal;
 
         // backup trapframe
-        let trap_ctx = task_inner.get_trap_cx();
+        let trap_ctx = task.get_trap_cx();
         task_inner.trap_ctx_backup = Some(*trap_ctx);
 
         // modify trapframe
-        trap_ctx.sepc = handler;
+        trap_ctx.era = handler;
 
         // put args (a0)
-        trap_ctx.x[10] = sig;
+        trap_ctx.r[4] = sig;
     } else {
         // default action
         println!("[K] task/call_user_signal_handler: default action: ignore it or kill process");

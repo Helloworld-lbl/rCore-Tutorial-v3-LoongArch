@@ -8,10 +8,10 @@ use core::arch::asm;
 
 #[no_mangle]
 fn main() -> i32 {
-    println!("Try to execute privileged instruction in U Mode");
+    println!("Try to execute privileged instruction in PLV3 Mode");
     println!("Kernel should kill this application!");
     unsafe {
-        asm!("sret");
+        asm!("ertn");
     }
     0
 }

@@ -1,5 +1,5 @@
 # Building
-TARGET := riscv64gc-unknown-none-elf
+TARGET := loongarch64-unknown-none
 MODE := release
 KERNEL_ELF := target/$(TARGET)/$(MODE)/os
 KERNEL_BIN := $(KERNEL_ELF).bin
@@ -21,8 +21,8 @@ endif
 KERNEL_ENTRY_PA := 0x80200000
 
 # Binutils
-OBJDUMP := rust-objdump --arch-name=riscv64
-OBJCOPY := rust-objcopy --binary-architecture=riscv64
+OBJDUMP := loongarch64-unknown-linux-gnu-objdump
+OBJCOPY := loongarch64-unknown-linux-gnu-objcopy
 
 # Disassembly
 DISASM ?= -x
@@ -44,7 +44,7 @@ $(KERNEL_BIN): kernel
 fs-img: $(APPS)
 	@cd ../user && make build TEST=$(TEST)
 	@rm -f $(FS_IMG)
-	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/target/riscv64gc-unknown-none-elf/release/
+	@cd ../easy-fs-fuse && cargo run --release -- -s ../user/src/bin/ -t ../user/target/loongarch64-unknown-none/release/
 
 $(APPS):
 
