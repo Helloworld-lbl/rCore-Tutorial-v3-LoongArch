@@ -1,20 +1,27 @@
-//! RISC-V timer-related functionality
+use loongarch::{register::{tcfg, cpucfg::Cpucfg}, time};
 
-use crate::config::CLOCK_FREQ;
-use crate::sbi::set_timer;
-use riscv::register::time;
-
-const TICKS_PER_SEC: usize = 100;
-const MSEC_PER_SEC: usize = 1000;
-///get current time
-pub fn get_time() -> usize {
-    time::read()
+pub fn init_trigger(ticks_per_sec: usize) {
+    let stable_counter_freq = Cpucfg::get_sc_freq();
+    let trigger_freq = stable_counter_freq / ticks_per_sec;
+    let mut tcfg = tcfg::read();
+    tcfg.init_trigger(trigger_freq);
 }
-/// get current time in microseconds
+
+// pub fn get_time_s() -> usize {
+//     let stable_counter_freq = Cpucfg::get_sc_freq();
+//     get_time() / stable_counter_freq
+// }
+
 pub fn get_time_ms() -> usize {
-    time::read() / (CLOCK_FREQ / MSEC_PER_SEC)
+    let stable_counter_freq = Cpucfg::get_sc_freq();
+    get_time() * 1_000 / stable_counter_freq
 }
-/// set the next timer interrupt
-pub fn set_next_trigger() {
-    set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
+
+// pub fn get_time_us() -> usize {
+//     let stable_counter_freq = Cpucfg::get_sc_freq();
+//     get_time() * 1_000_000 / stable_counter_freq
+// }
+
+pub fn get_time() -> usize {
+    time::get_time()
 }

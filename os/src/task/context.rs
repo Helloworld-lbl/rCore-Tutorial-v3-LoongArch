@@ -8,8 +8,8 @@ pub struct TaskContext {
     ra: usize,
     /// kernel stack pointer of app
     sp: usize,
-    /// s0-11 register, callee saved
-    s: [usize; 12],
+    /// callee saved registers:  s 0..11
+    s: [usize; 10],
 }
 
 impl TaskContext {
@@ -18,7 +18,7 @@ impl TaskContext {
         Self {
             ra: 0,
             sp: 0,
-            s: [0; 12],
+            s: [0; 10],
         }
     }
     /// set Task Context{__restore ASM funciton: trap_return, sp: kstack_ptr, s: s_0..12}
@@ -26,7 +26,7 @@ impl TaskContext {
         Self {
             ra: trap_return as usize,
             sp: kstack_ptr,
-            s: [0; 12],
+            s: [0; 10],
         }
     }
 }

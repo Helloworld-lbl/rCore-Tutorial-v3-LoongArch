@@ -1,6 +1,6 @@
 //!Implementation of [`PidAllocator`]
 use crate::config::{KERNEL_STACK_SIZE, PAGE_SIZE, TRAMPOLINE};
-use crate::mm::{MapPermission, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MapPermission, VirtAddr, TRAMPOLINE_SPACE};
 use crate::sync::UPSafeCell;
 use alloc::vec::Vec;
 use lazy_static::*;
@@ -73,10 +73,10 @@ impl KernelStack {
     pub fn new(pid_handle: &PidHandle) -> Self {
         let pid = pid_handle.0;
         let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(pid);
-        KERNEL_SPACE.exclusive_access().insert_framed_area(
+        TRAMPOLINE_SPACE.exclusive_access().insert_framed_area(
             kernel_stack_bottom.into(),
             kernel_stack_top.into(),
-            MapPermission::R | MapPermission::W,
+            MapPermission::NX | MapPermission::W | MapPermission::D,
         );
         KernelStack { pid: pid_handle.0 }
     }
@@ -104,7 +104,7 @@ impl Drop for KernelStack {
     fn drop(&mut self) {
         let (kernel_stack_bottom, _) = kernel_stack_position(self.pid);
         let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
-        KERNEL_SPACE
+        TRAMPOLINE_SPACE
             .exclusive_access()
             .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
     }

@@ -1,4 +1,4 @@
-static TARGET_PATH: &str = "../user/target/riscv64gc-unknown-none-elf/release/";
+static TARGET_PATH: &str = "../user/target/loongarch64-unknown-none/release/";
 
 fn main() {
     println!("cargo:rerun-if-changed=../user/src/");

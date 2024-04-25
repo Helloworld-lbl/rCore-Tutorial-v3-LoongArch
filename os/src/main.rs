@@ -18,13 +18,15 @@
 //! We then call [`task::run_tasks()`] and for the first time go to
 //! userspace.
 
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 #![deny(warnings)]
 #![allow(unused_imports)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
+
+#![allow(unused)]
 
 extern crate alloc;
 
@@ -41,14 +43,17 @@ mod drivers;
 pub mod fs;
 pub mod lang_items;
 pub mod mm;
-pub mod sbi;
 pub mod sync;
 pub mod syscall;
 pub mod task;
 pub mod timer;
 pub mod trap;
+pub mod shutdown;
+pub mod uart;
 
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
+use config::TICKS_PER_SEC;
+use shutdown::shutdown;
 
 global_asm!(include_str!("entry.asm"));
 /// clear BSS segment
@@ -71,8 +76,8 @@ pub fn rust_main() -> ! {
     mm::init();
     mm::remap_test();
     trap::init();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+    timer::init_trigger(TICKS_PER_SEC);
+    // loongarch::driver::block_device_test();
     fs::list_apps();
     task::add_initproc();
     task::run_tasks();

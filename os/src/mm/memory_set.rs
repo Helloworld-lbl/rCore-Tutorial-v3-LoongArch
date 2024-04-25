@@ -1,16 +1,17 @@
 //! Implementation of [`MapArea`] and [`MemorySet`].
-use super::{frame_alloc, FrameTracker};
-use super::{PTEFlags, PageTable, PageTableEntry};
+
+use super::{frame_alloc, FrameTracker, PageTableEntry};
+use super::{PTEFlags, PageTable};
 use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::{StepByOne, VPNRange};
-use crate::config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
+use crate::config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, USER_STACK_SIZE};
 use crate::sync::UPSafeCell;
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::arch::asm;
 use lazy_static::*;
-use riscv::register::satp;
+use loongarch::register::{crmd, pgdh, pgdl};
 
 extern "C" {
     fn stext();
@@ -30,10 +31,17 @@ lazy_static! {
     pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
 }
+
 ///Get kernelspace root ppn
 pub fn kernel_token() -> usize {
     KERNEL_SPACE.exclusive_access().token()
 }
+
+lazy_static! {
+    pub static ref TRAMPOLINE_SPACE: Arc<UPSafeCell<MemorySet>> = 
+        Arc::new(unsafe { UPSafeCell::new(MemorySet::new_trampoline()) });
+}
+
 /// memory set structure, controls virtual-memory space
 pub struct MemorySet {
     page_table: PageTable,
@@ -41,14 +49,12 @@ pub struct MemorySet {
 }
 
 impl MemorySet {
-    ///Create an empty `MemorySet`
     pub fn new_bare() -> Self {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
         }
     }
-    ///Get pagetable `root_ppn`
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
@@ -83,19 +89,9 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
-    /// Mention that trampoline is not collected by areas.
-    fn map_trampoline(&mut self) {
-        self.page_table.map(
-            VirtAddr::from(TRAMPOLINE).into(),
-            PhysAddr::from(strampoline as usize).into(),
-            PTEFlags::R | PTEFlags::X,
-        );
-    }
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();
-        // map trampoline
-        memory_set.map_trampoline();
         // map kernel sections
         println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
         println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
@@ -110,7 +106,7 @@ impl MemorySet {
                 (stext as usize).into(),
                 (etext as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::X,
+                MapPermission::from_bits(0).unwrap(),
             ),
             None,
         );
@@ -120,7 +116,7 @@ impl MemorySet {
                 (srodata as usize).into(),
                 (erodata as usize).into(),
                 MapType::Identical,
-                MapPermission::R,
+                MapPermission::NX,
             ),
             None,
         );
@@ -130,7 +126,7 @@ impl MemorySet {
                 (sdata as usize).into(),
                 (edata as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::NX | MapPermission::W | MapPermission::D,
             ),
             None,
         );
@@ -140,7 +136,7 @@ impl MemorySet {
                 (sbss_with_stack as usize).into(),
                 (ebss as usize).into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::NX | MapPermission::W | MapPermission::D,
             ),
             None,
         );
@@ -150,7 +146,7 @@ impl MemorySet {
                 (ekernel as usize).into(),
                 MEMORY_END.into(),
                 MapType::Identical,
-                MapPermission::R | MapPermission::W,
+                MapPermission::NX | MapPermission::W | MapPermission::D,
             ),
             None,
         );
@@ -161,7 +157,7 @@ impl MemorySet {
                     (*pair).0.into(),
                     ((*pair).0 + (*pair).1).into(),
                     MapType::Identical,
-                    MapPermission::R | MapPermission::W,
+                    MapPermission::NX | MapPermission::W | MapPermission::D,
                 ),
                 None,
             );
@@ -172,8 +168,6 @@ impl MemorySet {
     /// also returns user_sp and entry point.
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
         let mut memory_set = Self::new_bare();
-        // map trampoline
-        memory_set.map_trampoline();
         // map program headers of elf, with U flag
         let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
         let elf_header = elf.header;
@@ -186,16 +180,16 @@ impl MemorySet {
             if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
                 let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
                 let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
-                let mut map_perm = MapPermission::U;
+                let mut map_perm = MapPermission::PLV_L | MapPermission::PLV_H;
                 let ph_flags = ph.flags();
-                if ph_flags.is_read() {
-                    map_perm |= MapPermission::R;
+                if !ph_flags.is_read() {
+                    map_perm |= MapPermission::NR;
                 }
                 if ph_flags.is_write() {
-                    map_perm |= MapPermission::W;
+                    map_perm |= MapPermission::W | MapPermission::D;
                 }
-                if ph_flags.is_execute() {
-                    map_perm |= MapPermission::X;
+                if !ph_flags.is_execute() {
+                    map_perm |= MapPermission::NX;
                 }
                 let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
                 max_end_vpn = map_area.vpn_range.get_end();
@@ -216,17 +210,7 @@ impl MemorySet {
                 user_stack_bottom.into(),
                 user_stack_top.into(),
                 MapType::Framed,
-                MapPermission::R | MapPermission::W | MapPermission::U,
-            ),
-            None,
-        );
-        // map TrapContext
-        memory_set.push(
-            MapArea::new(
-                TRAP_CONTEXT.into(),
-                TRAMPOLINE.into(),
-                MapType::Framed,
-                MapPermission::R | MapPermission::W,
+                MapPermission::NX | MapPermission::W | MapPermission::D | MapPermission::PLV_L | MapPermission::PLV_H,
             ),
             None,
         );
@@ -236,11 +220,18 @@ impl MemorySet {
             elf.header.pt2.entry_point() as usize,
         )
     }
-    ///Clone a same `MemorySet`
-    pub fn from_existed_user(user_space: &MemorySet) -> MemorySet {
+    pub fn new_trampoline() -> Self {
         let mut memory_set = Self::new_bare();
-        // map trampoline
-        memory_set.map_trampoline();
+        memory_set.page_table.map(
+            VirtAddr::from(TRAMPOLINE).into(),
+            PhysAddr::from(strampoline as usize).into(),
+            PTEFlags::from_bits(0).unwrap(),
+        );
+        memory_set
+    }
+    ///Clone a same `MemorySet`
+    pub fn from_existed_user(user_space: &Self) -> Self {
+        let mut memory_set = Self::new_bare();
         // copy data sections/trap_context/user_stack
         for area in user_space.areas.iter() {
             let new_area = MapArea::from_another(area);
@@ -256,12 +247,20 @@ impl MemorySet {
         }
         memory_set
     }
-    ///Refresh TLB with `sfence.vma`
     pub fn activate(&self) {
-        let satp = self.page_table.token();
         unsafe {
-            satp::write(satp);
-            asm!("sfence.vma");
+            let root_pa: PhysAddr = self.page_table.token().into();
+            pgdl::write_pa_to_pgdl(root_pa.into());
+            let mut crmd = crmd::read();
+            crmd.enable_pg();
+            asm!("invtlb 0x0, $r0, $r0");
+        }
+    }
+    pub fn activate_trampoline(&self) {
+        unsafe {
+            let root_pa: PhysAddr = self.page_table.token().into();
+            pgdh::write_pa_to_pgdh(root_pa.into());
+            asm!("invtlb 0x0, $r0, $r0");
         }
     }
     ///Translate throuth pagetable
@@ -298,7 +297,7 @@ impl MapArea {
             map_perm,
         }
     }
-    pub fn from_another(another: &MapArea) -> Self {
+    pub fn from_another(another: &Self) -> Self {
         Self {
             vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
             data_frames: BTreeMap::new(),
@@ -370,15 +369,13 @@ pub enum MapType {
 
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
-    pub struct MapPermission: u8 {
-        ///Readable
-        const R = 1 << 1;
-        ///Writable
-        const W = 1 << 2;
-        ///Excutable
-        const X = 1 << 3;
-        ///Accessible in U mode
-        const U = 1 << 4;
+    pub struct MapPermission: u64 {
+        const D = 1 << 1;
+        const PLV_L = 1 << 2;
+        const PLV_H = 1 << 3;
+        const W = 1 << 8;
+        const NR = 1 << 61;
+        const NX = 1 << 62;
     }
 }
 
