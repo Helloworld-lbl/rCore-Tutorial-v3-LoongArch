@@ -1,29 +1,37 @@
 use core::cmp::Ordering;
 
-use crate::config::CLOCK_FREQ;
-use crate::sbi::set_timer;
+use loongarch::{register::{tcfg, cpucfg::Cpucfg}, time};
 use crate::sync::UPSafeCell;
 use crate::task::{wakeup_task, TaskControlBlock};
 use alloc::collections::BinaryHeap;
 use alloc::sync::Arc;
 use lazy_static::*;
-use riscv::register::time;
 
-const TICKS_PER_SEC: usize = 100;
-const MSEC_PER_SEC: usize = 1000;
-
-pub fn get_time() -> usize {
-    time::read()
+pub fn init_trigger(ticks_per_sec: usize) {
+    let stable_counter_freq = Cpucfg::get_sc_freq();
+    let trigger_freq = stable_counter_freq / ticks_per_sec;
+    let mut tcfg = tcfg::read();
+    tcfg.init_trigger(trigger_freq);
 }
+
+// pub fn get_time_s() -> usize {
+//     let stable_counter_freq = Cpucfg::get_sc_freq();
+//     get_time() / stable_counter_freq
+// }
 
 pub fn get_time_ms() -> usize {
-    time::read() / (CLOCK_FREQ / MSEC_PER_SEC)
+    let stable_counter_freq = Cpucfg::get_sc_freq();
+    get_time() * 1_000 / stable_counter_freq
 }
 
-pub fn set_next_trigger() {
-    set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
-}
+// pub fn get_time_us() -> usize {
+//     let stable_counter_freq = Cpucfg::get_sc_freq();
+//     get_time() * 1_000_000 / stable_counter_freq
+// }
 
+pub fn get_time() -> usize {
+    time::get_time()
+}
 pub struct TimerCondVar {
     pub expire_ms: usize,
     pub task: Arc<TaskControlBlock>,

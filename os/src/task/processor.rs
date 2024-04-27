@@ -2,7 +2,6 @@ use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{ProcessControlBlock, TaskContext, TaskControlBlock};
 use crate::sync::UPSafeCell;
-use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
 
@@ -71,23 +70,6 @@ pub fn current_process() -> Arc<ProcessControlBlock> {
 pub fn current_user_token() -> usize {
     let task = current_task().unwrap();
     task.get_user_token()
-}
-
-pub fn current_trap_cx() -> &'static mut TrapContext {
-    current_task()
-        .unwrap()
-        .inner_exclusive_access()
-        .get_trap_cx()
-}
-
-pub fn current_trap_cx_user_va() -> usize {
-    current_task()
-        .unwrap()
-        .inner_exclusive_access()
-        .res
-        .as_ref()
-        .unwrap()
-        .trap_cx_user_va()
 }
 
 pub fn current_kstack_top() -> usize {

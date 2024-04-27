@@ -6,6 +6,7 @@ use super::{pid_alloc, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{translated_refmut, MemorySet, KERNEL_SPACE};
 use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell};
+use crate::task::current_task;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::String;
 use alloc::sync::{Arc, Weak};
@@ -111,7 +112,7 @@ impl ProcessControlBlock {
         ));
         // prepare trap_cx of main thread
         let task_inner = task.inner_exclusive_access();
-        let trap_cx = task_inner.get_trap_cx();
+        let trap_cx = task.get_trap_cx();
         let ustack_top = task_inner.res.as_ref().unwrap().ustack_top();
         let kstack_top = task.kstack.get_top();
         drop(task_inner);
@@ -119,7 +120,6 @@ impl ProcessControlBlock {
             entry_point,
             ustack_top,
             KERNEL_SPACE.exclusive_access().token(),
-            kstack_top,
             trap_handler as usize,
         );
         // add main thread to the process
@@ -146,7 +146,6 @@ impl ProcessControlBlock {
         let mut task_inner = task.inner_exclusive_access();
         task_inner.res.as_mut().unwrap().ustack_base = ustack_base;
         task_inner.res.as_mut().unwrap().alloc_user_res();
-        task_inner.trap_cx_ppn = task_inner.res.as_mut().unwrap().trap_cx_ppn();
         // push arguments on user stack
         let mut user_sp = task_inner.res.as_mut().unwrap().ustack_top();
         user_sp -= (args.len() + 1) * core::mem::size_of::<usize>();
@@ -177,12 +176,11 @@ impl ProcessControlBlock {
             entry_point,
             user_sp,
             KERNEL_SPACE.exclusive_access().token(),
-            task.kstack.get_top(),
             trap_handler as usize,
         );
-        trap_cx.x[10] = args.len();
-        trap_cx.x[11] = argv_base;
-        *task_inner.get_trap_cx() = trap_cx;
+        trap_cx.r[4] = args.len();
+        trap_cx.r[5] = argv_base;
+        *task.get_trap_cx() = trap_cx;
     }
 
     /// Only support processes with a single thread.
@@ -242,11 +240,9 @@ impl ProcessControlBlock {
         let mut child_inner = child.inner_exclusive_access();
         child_inner.tasks.push(Some(Arc::clone(&task)));
         drop(child_inner);
-        // modify kstack_top in trap_cx of this thread
-        let task_inner = task.inner_exclusive_access();
-        let trap_cx = task_inner.get_trap_cx();
-        trap_cx.kernel_sp = task.kstack.get_top();
-        drop(task_inner);
+        let trap_cx = task.get_trap_cx();
+        let trap_cx = unsafe { (trap_cx as *mut TrapContext).as_mut().unwrap() };
+        *trap_cx = TrapContext::from_existed(current_task().unwrap().get_trap_cx());
         insert_into_pid2process(child.getpid(), Arc::clone(&child));
         // add this thread to scheduler
         add_task(task);

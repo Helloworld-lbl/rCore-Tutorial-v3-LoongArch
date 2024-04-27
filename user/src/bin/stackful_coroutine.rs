@@ -45,21 +45,18 @@ struct Task {
 #[derive(Debug, Default)]
 #[repr(C)] // not strictly needed but Rust ABI is not guaranteed to be stable
 pub struct TaskContext {
-    // 15 u64
-    x1: u64,  //ra: return addres
-    x2: u64,  //sp
-    x8: u64,  //s0,fp
-    x9: u64,  //s1
-    x18: u64, //x18-27: s2-11
-    x19: u64,
-    x20: u64,
-    x21: u64,
-    x22: u64,
-    x23: u64,
-    x24: u64,
-    x25: u64,
-    x26: u64,
-    x27: u64,
+    r1: u64,
+    r3: u64,
+    r22: u64,
+    r23: u64,
+    r24: u64,
+    r25: u64,
+    r26: u64,
+    r27: u64,
+    r28: u64,
+    r29: u64,
+    r30: u64,
+    r31: u64,
     nx1: u64, //new return addres
 }
 
@@ -197,9 +194,9 @@ impl Runtime {
             // enough space to actually get an aligned pointer in the first place).
             let s_ptr = (s_ptr as usize & !7) as *mut u8;
 
-            available.ctx.x1 = guard as u64; //ctx.x1  is old return address
+            available.ctx.r1 = guard as u64; //ctx.x1  is old return address
             available.ctx.nx1 = f as u64; //ctx.nx2 is new return address
-            available.ctx.x2 = s_ptr.offset(-32) as u64; //cxt.x2 is sp
+            available.ctx.r3 = s_ptr.offset(-32) as u64; //cxt.x2 is sp
         }
         available.state = State::Ready;
     }
@@ -264,39 +261,35 @@ unsafe extern "C" fn switch(old: *mut TaskContext, new: *const TaskContext) {
     // a0: _old, a1: _new
     asm!(
         "
-        sd x1, 0x00(a0)
-        sd x2, 0x08(a0)
-        sd x8, 0x10(a0)
-        sd x9, 0x18(a0)
-        sd x18, 0x20(a0)
-        sd x19, 0x28(a0)
-        sd x20, 0x30(a0)
-        sd x21, 0x38(a0)
-        sd x22, 0x40(a0)
-        sd x23, 0x48(a0)
-        sd x24, 0x50(a0)
-        sd x25, 0x58(a0)
-        sd x26, 0x60(a0)
-        sd x27, 0x68(a0)
-        sd x1, 0x70(a0)
+        st.d $r1, $r4, 0x0
+        st.d $r3, $r4, 0x8
+        st.d $r22, $r4, 0x10
+        st.d $r23, $r4, 0x18
+        st.d $r24, $r4, 0x20
+        st.d $r25, $r4, 0x28
+        st.d $r26, $r4, 0x30
+        st.d $r27, $r4, 0x38
+        st.d $r28, $r4, 0x40
+        st.d $r29, $r4, 0x48
+        st.d $r30, $r4, 0x50
+        st.d $r31, $r4, 0x58
+        st.d $r1, $r4, 0x60
 
-        ld x1, 0x00(a1)
-        ld x2, 0x08(a1)
-        ld x8, 0x10(a1)
-        ld x9, 0x18(a1)
-        ld x18, 0x20(a1)
-        ld x19, 0x28(a1)
-        ld x20, 0x30(a1)
-        ld x21, 0x38(a1)
-        ld x22, 0x40(a1)
-        ld x23, 0x48(a1)
-        ld x24, 0x50(a1)
-        ld x25, 0x58(a1)
-        ld x26, 0x60(a1)
-        ld x27, 0x68(a1)
-        ld t0, 0x70(a1)
+        ld.d $r1, $r4, 0x0
+        ld.d $r3, $r4, 0x8
+        ld.d $r22, $r4, 0x10
+        ld.d $r23, $r4, 0x18
+        ld.d $r24, $r4, 0x20
+        ld.d $r25, $r4, 0x28
+        ld.d $r26, $r4, 0x30
+        ld.d $r27, $r4, 0x38
+        ld.d $r28, $r4, 0x40
+        ld.d $r29, $r4, 0x48
+        ld.d $r30, $r4, 0x50
+        ld.d $r31, $r4, 0x58
+        ld.d $r12, $r4, 0x60
 
-        jr t0
+        jirl $r0, $r12, 0x0
     ",
         options(noreturn)
     );

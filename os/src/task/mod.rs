@@ -10,7 +10,7 @@ mod task;
 
 use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};
-use crate::sbi::shutdown;
+use crate::shutdown::shutdown;
 use crate::timer::remove_timer;
 use alloc::{sync::Arc, vec::Vec};
 use lazy_static::*;
@@ -22,7 +22,7 @@ pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle, IDLE_PID};
 pub use manager::{add_task, pid2process, remove_from_pid2process, remove_task, wakeup_task};
 pub use processor::{
-    current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va,
+    current_kstack_top, current_process, current_task,
     current_user_token, run_tasks, schedule, take_current_task,
 };
 pub use signal::SignalFlags;

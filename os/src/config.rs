@@ -1,12 +1,21 @@
-#[allow(unused)]
+//! Constants used in rCore
 
-pub const USER_STACK_SIZE: usize = 4096 * 2;
-pub const KERNEL_STACK_SIZE: usize = 4096 * 2;
-pub const KERNEL_HEAP_SIZE: usize = 0x20_0000;
-pub const PAGE_SIZE: usize = 0x1000;
-pub const PAGE_SIZE_BITS: usize = 0xc;
+pub const USER_STACK_SIZE: usize = 4096 * 4;
+pub const KERNEL_STACK_SIZE: usize = 4096 * 4;
+pub const KERNEL_HEAP_SIZE: usize = 0x30_0000;
+
+/// physical address
+pub const PALEN: usize = 48;
+pub const VALEN: usize = 48;
+pub const PPN_WIDTH: usize = PALEN - PAGE_SIZE_BITS;
+pub const VPN_WIDTH: usize = VALEN - PAGE_SIZE_BITS;
+pub const PAGE_SIZE: usize = 0x4000;
+pub const PAGE_SIZE_BITS: usize = 0xe;
+pub const TABLE_ENTRY_NUM: usize = 0x800;
+pub const TABLE_ENTRY_NUM_BITS: usize = 0xb;
 
 pub const TRAMPOLINE: usize = usize::MAX - PAGE_SIZE + 1;
-pub const TRAP_CONTEXT_BASE: usize = TRAMPOLINE - PAGE_SIZE;
 
-pub use crate::board::{CLOCK_FREQ, MEMORY_END, MMIO};
+pub use crate::board::{MEMORY_END, MMIO};
+
+pub const TICKS_PER_SEC: usize = 100;

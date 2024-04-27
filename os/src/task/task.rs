@@ -23,21 +23,21 @@ impl TaskControlBlock {
         let inner = process.inner_exclusive_access();
         inner.memory_set.token()
     }
+
+    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
+        let trap_cx = self.kstack.get_top() - core::mem::size_of::<TrapContext>();
+        unsafe { (trap_cx as *mut TrapContext).as_mut().unwrap() }
+    }
 }
 
 pub struct TaskControlBlockInner {
     pub res: Option<TaskUserRes>,
-    pub trap_cx_ppn: PhysPageNum,
     pub task_cx: TaskContext,
     pub task_status: TaskStatus,
     pub exit_code: Option<i32>,
 }
 
 impl TaskControlBlockInner {
-    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
-        self.trap_cx_ppn.get_mut()
-    }
-
     #[allow(unused)]
     fn get_status(&self) -> TaskStatus {
         self.task_status
@@ -51,7 +51,6 @@ impl TaskControlBlock {
         alloc_user_res: bool,
     ) -> Self {
         let res = TaskUserRes::new(Arc::clone(&process), ustack_base, alloc_user_res);
-        let trap_cx_ppn = res.trap_cx_ppn();
         let kstack = kstack_alloc();
         let kstack_top = kstack.get_top();
         Self {
@@ -60,8 +59,7 @@ impl TaskControlBlock {
             inner: unsafe {
                 UPSafeCell::new(TaskControlBlockInner {
                     res: Some(res),
-                    trap_cx_ppn,
-                    task_cx: TaskContext::goto_trap_return(kstack_top),
+                    task_cx: TaskContext::goto_trap_return(kstack_top - core::mem::size_of::<TrapContext>()),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
                 })
